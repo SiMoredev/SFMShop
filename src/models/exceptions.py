@@ -20,3 +20,7 @@ class NegativePriceError(SFMShopException):
 class ValidationEmailError(SFMShopException):
     """Некорректно указан email"""
     pass
+
+class ZeroQuantityError(SFMShopException):
+    """Количество товаров не может равняться нулю"""
+    pass
