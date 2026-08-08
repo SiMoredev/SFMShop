@@ -1,0 +1,20 @@
+*   618a5b0 Merge pull request #2 from SiMoredev/features
+|\  
+| * 0293535 Добавлена скидка в main c правильной логикой
+| * 583fd6e Добавлена скидка в main
+| *   f130d7d Добавлена скидка на заказ c базовым значением
+| |\  
+| | * e956668 Добавлена скидка на заказ
+| | * 23083de Добавлен функционал
+| |/  
+|/|   
+| * acb528a Добавлена скидка на заказ в конструктор
+|/  
+*   550da38 Merge pull request #1 from SiMoredev/feature/test_data
+|\  
+| * 65d5b45 Добавлен 1 эксепшен
+|/  
+*   ae79583 Merge branch 'main' of https://github.com/SiMoredev/SFMShop
+|\  
+| * 2ef83c6 Initial commit
+* c9de87a Инициализация проекта
