@@ -2,10 +2,11 @@ from src.models.product import Product
 
 class Order:
 
-    def __init__(self, user, products, total):
+    def __init__(self, user, products, total, discount=0):
         self.user = user
         self.products = products
         self.total = total
+        self.discount = discount
 
     def __str__(self) -> str:
         return f"Заказ пользователя {self.user.name} на сумму {self.total} руб."
