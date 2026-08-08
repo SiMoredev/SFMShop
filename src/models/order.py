@@ -11,8 +11,8 @@ class Order:
     def __str__(self) -> str:
         return f"Заказ пользователя {self.user.name} на сумму {self.total} руб."
 
-    def add_product(self, product):
+    def add_product(self, product, discount):
         if not isinstance(product, Product):
             raise TypeError("объект не является экземпляром класса Product")
         self.products.append(product)
-        self.total += product.price * product.quantity
+        self.total += product.price * product.quantity * (1 - discount)
