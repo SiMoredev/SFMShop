@@ -20,8 +20,8 @@ def process_order_system():
     try:
         user = User("Sergey", "example@yandex.ru")
         order = Order(user, [], 0)
-        order.add_product(Product("Cheese", 1500, 3))
-        order.add_product(Product("Bread", 100, 10))
+        order.add_product(Product("Cheese", 1500, 3), 0.2)
+        order.add_product(Product("Bread", 100, 10), 0.3)
         print(order)
     except: ValidationEmailError("Некорректно указан Email")
 
