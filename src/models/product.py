@@ -1,25 +1,42 @@
-from src.models.exceptions import NegativePriceError
+from src.models.exceptions import NegativePriceError, InsufficientStockError
+from typing import Optional
+from decimal import Decimal
+
 
 class Product:
 
-    def __init__(self, name, price, quantity):
+    def __init__(self, name: str, price: Decimal, quantity: int):
         self.name = name
-        self.price = price
-        self.quantity = quantity
-
-    def __str__(self) -> str:
-        return f"Товар: {self.name}, Цена: {self.price} руб., Количество: {self.quantity}"
-
-    def __repr__(self) -> str:
-        return f"Product('{self.name}', {self.price}, {self.quantity})"
-
-    def __lt__(self, other):
-        return self.price * self.quantity < other.price * other.quantity
-
-    def __eq__(self, other):
-        return self.name == other.name & self.price == other.price
-
-    def set_price(self, price):
         if price < 0:
             raise NegativePriceError("Цена не может быть отрицательной")
         self.price = price
+        if quantity < 0:
+            raise ValueError("Количество не может быть отрицательным")
+        self.quantity = quantity
+        self.id: Optional[int] = None
+
+    def __str__(self):
+        return "Товар: " + self.name + ", Цена: " + str(self.price) + " руб., Количество: " + str(self.quantity)
+
+    def __repr__(self):
+        return "Product('" + self.name + "', " + str(self.price) + ", " + str(self.quantity) + ")"
+
+    def __lt__(self, other):
+        if not isinstance(other, Product):
+            return NotImplemented
+        return self.price < other.price
+
+    def __eq__(self, other):
+        if not isinstance(other, Product):
+            return False
+        return self.name == other.name and self.price == other.price
+
+    def sell(self, amount):
+        if self.quantity < amount:
+            raise InsufficientStockError(
+                f"Товара недостаточно. На складе: {self.quantity}, требуется: {amount}"
+            )
+        self.quantity = self.quantity - amount
+
+    def get_total_price(self):
+        return self.price * self.quantity
