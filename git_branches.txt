@@ -1,7 +1,0 @@
-  features
-* main
-  remotes/origin/HEAD -> origin/main
-  remotes/origin/feature/test
-  remotes/origin/feature/test_data
-  remotes/origin/features
-  remotes/origin/main

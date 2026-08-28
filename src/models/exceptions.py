@@ -21,3 +21,7 @@ class ValidationEmailError(SFMShopException):
 class ZeroQuantityError(SFMShopException):
     """Количество товаров не может равняться нулю"""
     pass
+
+class NotUniqueEmailError(SFMShopException):
+    """Неуникальный email"""
+    pass
