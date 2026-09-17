@@ -1,25 +1,55 @@
-from src.models.exceptions import NegativePriceError, InsufficientStockError
+from src.models.exceptions import InsufficientStockError
+from src.models.mixins import LoggableMixin, SerializableMixin
+from src.models.metaclasses import ModelRegistryMeta
+from src.models.descriptors import PositiveNumber, CachedProperty
 from typing import Optional
 from decimal import Decimal
+from abc import ABC, abstractmethod
 
 
-class Product:
+class DiscountStrategy(ABC):
+    @abstractmethod
+    def apply(self, price: Decimal) -> Decimal:
+        pass
+
+
+class FixedDiscount(DiscountStrategy):
+
+    def __init__(self, fixed_discount: Decimal) -> None:
+        self.fixed_discount = fixed_discount
+
+    def apply(self, price: Decimal) -> Decimal:
+        return max(Decimal("0"), price - self.fixed_discount)
+
+class PersentDiscount(DiscountStrategy):
+
+    def __init__(self, persent_discount) -> None:
+        self.persent_discount = persent_discount
+
+    def apply(self, price: Decimal) -> Decimal:
+        return price * (1 - self.persent_discount / 100)
+
+
+class Product(LoggableMixin, SerializableMixin, metaclass=ModelRegistryMeta):
+
+    price = PositiveNumber[Decimal]("_price")
+    quantity = PositiveNumber[int]("_quantity")
 
     def __init__(self, name: str, price: Decimal, quantity: int):
         self.name = name
-        if price < 0:
-            raise NegativePriceError("Цена не может быть отрицательной")
         self.price = price
-        if quantity < 0:
-            raise ValueError("Количество не может быть отрицательным")
         self.quantity = quantity
         self.id: Optional[int] = None
+        self.log(f"Создан товар: {name}, цена: {price}")
 
     def __str__(self):
-        return "Товар: " + self.name + ", Цена: " + str(self.price) + " руб., Количество: " + str(self.quantity)
+        return self.name + ", Цена: " + str(self.price) + " руб., Количество: " + str(self.quantity)
 
     def __repr__(self):
         return "Product('" + self.name + "', " + str(self.price) + ", " + str(self.quantity) + ")"
+
+    def __len__(self):
+        return len(self)
 
     def __lt__(self, other):
         if not isinstance(other, Product):
@@ -38,5 +68,35 @@ class Product:
             )
         self.quantity = self.quantity - amount
 
+    @CachedProperty
     def get_total_price(self):
         return self.price * self.quantity
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(data["name"], data["price"], data["quantity"])
+
+    def calculate_price(self, discount: DiscountStrategy):
+        if discount is None:
+            return self.price
+        return discount.apply(self.price)
+
+
+"""Тесты"""
+def main():
+    product_data = {"name": "pizza", "price": 2000, "quantity": 10}
+    new_product = Product.from_dict(product_data)
+    print(new_product)
+    print(Product.calculate_price(new_product, PersentDiscount(10)))
+    print(new_product.get_total_price)
+
+    # Проверка регистрации
+    print(ModelRegistryMeta._registry)
+    # {"Product": <class 'Product'>, "Order": <class 'Order'>}
+
+    # Использование to_dict()
+    product = Product("Ноутбук", Decimal("1000"), 10)
+    print(product.to_dict())  # {"name": "Ноутбук", "price": 1000}
+
+if __name__ == "__main__":
+    main()

@@ -1,5 +1,5 @@
 # Файл src/api/main.py
-from fastapi import FastAPI, HTTPException, status, Request
+from fastapi import Depends, FastAPI, HTTPException, status, Request
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from src.models.exceptions import ValidationEmailError
@@ -19,6 +19,7 @@ from src.database.connection import (
     )
 from src.schemas.schemas import ProductCreate, ProductUpdate, OrderCreate, UserCreate
 from src.models.product import Product
+from src.models.metaclasses import ModelRegistryMeta
 
 
 @asynccontextmanager
@@ -43,8 +44,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.post("/products", status_code=status.HTTP_201_CREATED)
 def add_product_endpoint(product: ProductCreate):
-    add_product(conn, product.name, product.price, product.quantity)
-    return product
+    new_product = add_product(conn, product.name, product.price, product.quantity)
+    return new_product
 
 
 @app.get("/products")
@@ -69,7 +70,7 @@ def get_products(limit: int = 10, offset: int = 0):
         "products": products
     }
 
-    
+
 @app.get("/products/{product_id}")
 def get_product(product_id: int):
     """Получить товар по ID"""
@@ -157,13 +158,15 @@ def create_user_endpoint(user: UserCreate):
             detail=str(e)
         )
     return new_user
-
+    
 def test_api():
     client = TestClient(app)
 
     # Тест POST /products
     response = client.post("/products", json={"name": "Sweets", "price": 1000, "quantity": 55})
     assert response.status_code == 201
+    print(response.json())
+    new_id = response.json()["id"]
     print("POST /products: OK")
 
     # Тест GET /products
@@ -182,9 +185,9 @@ def test_api():
     print("PUT /products/1: OK")
 
     # Тест DELETE /products/{id}
-    response = client.delete("/products/11")
+    response = client.delete(f"/products/{new_id}")
     assert response.status_code == 200
-    print("DELETE /products/11: OK")
+    print(f"DELETE /products/{new_id}: OK")
 
     # Тест POST /orders
     response = client.post("/orders", json={"user_id": 1, "product_id": 2, "quantity": 1})
@@ -209,3 +212,7 @@ def test_api():
 if __name__ == "__main__": 
     conn = connect_to_db()
     test_api()
+    print("Зарегистрированные классы:")
+    for name, cls in ModelRegistryMeta._registry.items():
+        print(f"  {name}: {cls}")
+    print(ModelRegistryMeta._registry)

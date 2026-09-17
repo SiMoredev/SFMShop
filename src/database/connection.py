@@ -4,8 +4,6 @@ import os
 from dotenv import load_dotenv
 from src.models.exceptions import ValidationEmailError
 from decimal import Decimal
-from src.models.product import Product
-
 
 load_dotenv()
 
@@ -83,10 +81,11 @@ def add_product(conn, name: str, price: Decimal, quantity: int):
     with conn.cursor() as cur:
         try:
             cur.execute(
-                "INSERT INTO products (name, price, quantity) VALUES (%s, %s, %s)", (name, price, quantity)
+                "INSERT INTO products (name, price, quantity) VALUES (%s, %s, %s) RETURNING id", (name, price, quantity)
             )
+            (new_id,) = cur.fetchone()
             conn.commit()
-            return cur.rowcount
+            return {"id": new_id}
         except psycopg2.errors.UniqueViolation:
             conn.rollback()
 

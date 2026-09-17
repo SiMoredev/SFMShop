@@ -1,4 +1,6 @@
-class User:
+from src.models.metaclasses import ModelRegistryMeta
+
+class User(metaclass=ModelRegistryMeta):
 
     def __init__(self, name, email):
         self.name = name
@@ -9,4 +11,3 @@ class User:
     def get_info(self):
         return 'Пользователь: ' + self.name + ', Email: ' + self.email
 
-# TODO: проверять, что в email есть @ и точка
