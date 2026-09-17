@@ -8,6 +8,9 @@ class User(metaclass=ModelRegistryMeta):
             raise ValueError("Неверный формат email")
         self.email = email
 
+    def __str__(self):
+        return f"Пользователь: {self.name}, email: {self.email}"
+
     def get_info(self):
         return 'Пользователь: ' + self.name + ', Email: ' + self.email
 

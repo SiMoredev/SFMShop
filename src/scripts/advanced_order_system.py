@@ -37,11 +37,12 @@ def process_advanced_order_system():
     print(len(order))  # Количество товаров
     print("Ноутбук" in order)  # Проверка наличия
     
-    return {
+    response = {
         "order": order_json,
         "delivery_cost": delivery_cost,
-        "product": product.to_dict()
+        "total_price_order": order.calculate_total()
     }
-
+    print(response)
+    return response
 if __name__ == "__main__":
     process_advanced_order_system()

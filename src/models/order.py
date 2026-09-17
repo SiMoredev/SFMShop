@@ -41,6 +41,13 @@ class Order(LoggableMixin, metaclass=ModelRegistryMeta):
             raise KeyError("Товар уже находится в корзине")
         self.products.append(product)
 
+    def to_dict(self) -> dict:
+        return {
+            "user": self.user.to_dict() if hasattr(self.user, "to_dict") else str(self.user),
+            "products": [p.to_dict() for p in self.products],  # ← рекурсивный вызов
+            "order_id": self.order_id,
+        }
+
 
     """
     Обертка ниже для того, чтобы остальной код продолжал работать,
@@ -58,7 +65,7 @@ class OrderCalculator:
     def calculate_total(order: Order) -> Decimal:
         total = Decimal("0")
         for product in order.products:
-            total = total + product.get_total_price()
+            total = total + product.get_total_price
         return total
 
     @staticmethod

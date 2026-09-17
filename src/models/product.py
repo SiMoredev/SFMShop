@@ -68,19 +68,26 @@ class Product(LoggableMixin, SerializableMixin, metaclass=ModelRegistryMeta):
             )
         self.quantity = self.quantity - amount
 
-    @CachedProperty
-    def get_total_price(self):
-        return self.price * self.quantity
-
-    @classmethod
-    def from_dict(cls, data):
-        return cls(data["name"], data["price"], data["quantity"])
+    def to_dict(self) -> dict:
+            return {
+                "name": self.name,
+                "price": str(self.price),       # без подчёркивания, Decimal → str
+                "quantity": self.quantity,
+                "total_price": str(self.get_total_price)
+            }
 
     def calculate_price(self, discount: DiscountStrategy):
         if discount is None:
             return self.price
         return discount.apply(self.price)
 
+    @CachedProperty
+    def get_total_price(self) -> Decimal:
+        return self.price * Decimal(str(self.quantity))
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(data["name"], data["price"], data["quantity"])
 
 """Тесты"""
 def main():

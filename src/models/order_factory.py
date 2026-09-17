@@ -1,12 +1,13 @@
-from src.models.order import Order, OrderValidator
+from src.models.order import Order, OrderValidator, OrderCalculator
 from typing import Optional
 
 class OrderFactory:
     """Фабрика для создания заказов"""
     @staticmethod
-    def create_order(user, products, order_id: Optional[int] = None):
+    def create_order(user, *products, order_id: Optional[int] = None):
         order = Order(user, *products, order_id=order_id)
         OrderValidator.validate(order)
+        OrderCalculator.calculate_total(order)
         return order
     
     @classmethod
