@@ -17,7 +17,7 @@ def process_advanced_order_system():
     user = User("Sergey", "example@yandex.ru")
     
     # 1. Factory для создания заказов
-    order = OrderFactory.create_order(user, *products, order_id=15)
+    order = OrderFactory.create_order(user, *products, order_id=15) #Для 1 заказа необходимо убрать*
     
     # 2. Strategy для расчета доставки
     delivery = StandardDelivery()
