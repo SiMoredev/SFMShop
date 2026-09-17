@@ -8,7 +8,7 @@ from decimal import Decimal
 
 class Order(LoggableMixin, metaclass=ModelRegistryMeta):
 
-    def __init__(self, user, *products: Product, order_id: Optional[int] = None):
+    def __init__(self, user: User, *products: Product, order_id: Optional[int] = None):
         self.user = user
         self.products = list(products)
         self.order_id = order_id
@@ -100,9 +100,10 @@ def main():
 
     product2 = Product("Клавиатура", Decimal("2000"), 5)
     product3 = Product("Монитор", Decimal("10000"), 2)
+    user = User("Sergey", "example@yandex.ru")
 
-    order1 = Order("Sergey", *product1, order_id=2)
-    order2 = Order("Sergey", product2, order_id=3)
+    order1 = Order(user, *product1, order_id=2)
+    order2 = Order(user, product2, order_id=3)
     print(order1)
 
     print(len(order1))  # 2
