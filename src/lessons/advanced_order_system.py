@@ -1,8 +1,8 @@
-from src.models.order_factory import OrderFactory
-from src.models.payments import CardPayment
-from src.models.delivery_strategy import StandardDelivery
-from src.models.product import Product
-from src.models.user import User
+from src.api.models.order_factory import OrderFactory
+from src.api.models.payments import CardPayment
+from src.api.models.delivery_strategy import StandardDelivery
+from src.api.models.product import Product
+from src.api.models.user import User
 from decimal import Decimal
 
 

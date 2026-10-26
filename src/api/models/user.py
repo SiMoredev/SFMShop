@@ -1,4 +1,4 @@
-from src.models.metaclasses import ModelRegistryMeta
+from src.api.models.metaclasses import ModelRegistryMeta
 
 class User(metaclass=ModelRegistryMeta):
 
@@ -14,3 +14,12 @@ class User(metaclass=ModelRegistryMeta):
     def get_info(self):
         return 'Пользователь: ' + self.name + ', Email: ' + self.email
 
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if value == str:
+            self._name = value
+        else: raise ValueError("Имя должно быть строкой")

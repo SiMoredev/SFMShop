@@ -1,4 +1,4 @@
-from src.models.product import Product, DiscountStrategy
+from src.api.models.product import Product, DiscountStrategy
 from decimal import Decimal
 
 class ProductCalculator:

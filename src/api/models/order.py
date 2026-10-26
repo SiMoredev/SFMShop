@@ -1,8 +1,8 @@
-from src.models.mixins import LoggableMixin
+from src.api.models.mixins import LoggableMixin
 from typing import Optional
-from src.models.metaclasses import ModelRegistryMeta
-from src.models.product import Product
-from src.models.user import User
+from src.api.models.metaclasses import ModelRegistryMeta
+from src.api.models.product import Product
+from src.api.models.user import User
 from decimal import Decimal
 
 

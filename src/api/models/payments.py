@@ -1,4 +1,4 @@
-from src.models.mixins import LoggableMixin, SerializableMixin
+from src.api.models.mixins import LoggableMixin, SerializableMixin
 from abc import ABC, abstractmethod
 
 class Payment(ABC):

@@ -1,21 +1,80 @@
 # Файл src/database/connection.py
+from contextlib import contextmanager
+from email import contentmanager
+
 import psycopg2
 import os
 from dotenv import load_dotenv
-from src.models.exceptions import ValidationEmailError
+from src.api.models.exceptions import ValidationEmailError
 from decimal import Decimal
+import redis
+
 
 load_dotenv()
 
+DB_CONFIG = {
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": int(os.getenv("DB_PORT", 5432)),
+    "database": os.getenv("DB_NAME", "sfmshop"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD"),
+}
 
-def connect_to_db():
-    return psycopg2.connect(
-        host = "localhost",
-        database = "shop",
-        user = "simore",
-        password = os.getenv("DB_PASSWORD")
+PRIMARY_DB = {
+    "host": os.getenv("DB_PRIMARY_HOST", "localhost"),
+    "port": os.getenv("DB_PRIMARY_PORT", 5432),
+    "database": os.getenv("DB_NAME", "sfmshop"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD")
+}
+
+REPLICA_DB = {
+    "host": os.getenv("DB_REPLICA_HOST", "localhost"),
+    "port": os.getenv("DB_REPLICA_PORT", 5433),
+    "database": os.getenv("DB_NAME", "sfmshop"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD")
+}
+
+# Подключение к Redis
+redis_client = redis.Redis(
+    host='localhost',
+    port=6379,
+    db=0,
+    decode_responses=True # Автоматическое декодирование строк
     )
 
+
+def connect_to_db():
+    """Подключение к базе данных PostgreSQL"""
+    return psycopg2.connect(**DB_CONFIG)
+
+@contextmanager
+def get_connection(read_only=False):
+
+    if read_only:
+        conn = psycopg2.connect(**REPLICA_DB)
+    else:
+        conn = psycopg2.connect(**PRIMARY_DB)
+
+    try:
+        yield conn
+        if not read_only:
+            conn.commit()
+    except Exception as e:
+        if not read_only:
+            conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+def test_connection():
+    """Проверить подключение к базе данных"""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT version();")
+            version = cur.fetchone()
+            print(f"Подключение успешно! Версия PostgreSQL: {version[0]}")
 
 def create_user(conn, name: str, email: str):
     if "@" not in email or "." not in email:
@@ -95,7 +154,7 @@ def get_product_by_id(conn, product_id: int):
         cur.execute(
             "SELECT name, price, quantity FROM products WHERE id = %s", (product_id,)
         )
-        product = cur.fetchone()
+        product = cur.fetchone()[0]
         return product if product is not None else None
 
 

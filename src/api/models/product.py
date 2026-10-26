@@ -1,7 +1,7 @@
-from src.models.exceptions import InsufficientStockError
-from src.models.mixins import LoggableMixin, SerializableMixin
-from src.models.metaclasses import ModelRegistryMeta
-from src.models.descriptors import PositiveNumber, CachedProperty
+from src.api.models.exceptions import InsufficientStockError
+from src.api.models.mixins import LoggableMixin, SerializableMixin
+from src.api.models.metaclasses import ModelRegistryMeta
+from src.api.models.descriptors import PositiveNumber, CachedProperty
 from typing import Optional
 from decimal import Decimal
 from abc import ABC, abstractmethod

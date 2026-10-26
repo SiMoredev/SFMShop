@@ -2,7 +2,7 @@
 from fastapi import Depends, FastAPI, HTTPException, status, Request
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-from src.models.exceptions import ValidationEmailError
+from src.api.models.exceptions import ValidationEmailError
 from fastapi.testclient import TestClient
 from src.database.connection import (
     connect_to_db, 
@@ -18,8 +18,8 @@ from src.database.connection import (
     create_order,
     )
 from src.schemas.schemas import ProductCreate, ProductUpdate, OrderCreate, UserCreate
-from src.models.product import Product
-from src.models.metaclasses import ModelRegistryMeta
+from src.api.models.product import Product
+from src.api.models.metaclasses import ModelRegistryMeta
 
 
 @asynccontextmanager
