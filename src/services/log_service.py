@@ -1,25 +1,43 @@
 from datetime import datetime, timedelta
 import os
-
+import logging
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 client = MongoClient(
     host=os.getenv("MONGO_HOST", "localhost"),
-    port=int(os.getenv("MONGO_PORT", 27017))
+    port=int(os.getenv("MONGO_PORT", 27017)),
+    serverSelectionTimeoutMS=1000,  # ждать сервер не дольше 1 секунды
+    connectTimeoutMS=1000,
+    socketTimeoutMS=2000,
 )
 
 db = client["sfmshop_logs"]
-
 logs_collection = db["logs"]
+
+
+def init_logs_indexes():
+    """Создать индексы. Вызывается при старте приложения, не при импорте."""
+    try:
+        logs_collection.create_index("timestamp", expireAfterSeconds=60 * 60 * 24 * 30)
+    except PyMongoError:
+        logger.warning("MongoDB недоступна, индексы логов не созданы")
+
 
 def save_log(log_data):
     if "timestamp" not in log_data:
         log_data["timestamp"] = datetime.now()
-    result = logs_collection.insert_one(log_data)
-    return result.inserted_id
+    try:
+        return logs_collection.insert_one(log_data).inserted_id
+    except PyMongoError:
+        # запасной вариант: обычный лог в консоль / файл
+        logger.warning("MongoDB недоступна, лог: %s", log_data)
+        return None
 
 def get_logs_by_status_code(min_status, max_status):
     logs = logs_collection.find({

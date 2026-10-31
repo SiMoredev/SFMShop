@@ -1,7 +1,5 @@
 # Файл src/database/connection.py
 from contextlib import contextmanager
-from email import contentmanager
-
 import psycopg2
 import os
 from dotenv import load_dotenv
@@ -44,10 +42,18 @@ redis_client = redis.Redis(
     decode_responses=True # Автоматическое декодирование строк
     )
 
-
-def connect_to_db():
+def connect_to_db(explain_slower_than_ms=None):
     """Подключение к базе данных PostgreSQL"""
-    return psycopg2.connect(**DB_CONFIG)
+    conn = psycopg2.connect(**DB_CONFIG)
+    if explain_slower_than_ms is not None:
+        with conn.cursor() as cur:
+            cur.execute("LOAD 'auto_explain'")
+            cur.execute("SET auto_explain.log_min_duration = %s", (explain_slower_than_ms,))
+            cur.execute("SET auto_explain.log_analyze = on")   # реальное время, а не только оценка
+            cur.execute("SET auto_explain.log_buffers = on")   # чтение с диска / из кеша
+            cur.execute("SET auto_explain.log_format = 'json'")
+        conn.commit()
+    return conn
 
 @contextmanager
 def get_connection(read_only=False):
@@ -152,9 +158,9 @@ def add_product(conn, name: str, price: Decimal, quantity: int):
 def get_product_by_id(conn, product_id: int):
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT name, price, quantity FROM products WHERE id = %s", (product_id,)
+            "SELECT name, price, stock FROM products WHERE id = %s", (product_id,)
         )
-        product = cur.fetchone()[0]
+        product = cur.fetchone()
         return product if product is not None else None
 
 
@@ -172,17 +178,15 @@ def get_products_page(conn, limit: int = 10, offset: int = 0):
         cur.execute(
             "SELECT id, name, price, quantity FROM products ORDER BY id ASC LIMIT %s OFFSET %s", (limit, offset)
         )
-        products = cur.fetchall()
-        return products if products else []
+        return cur.fetchall()
 
 
-def count_products(conn):
+def count_products(conn) -> int:
     with conn.cursor() as cur:
         cur.execute(
             "SELECT COUNT(*) FROM products"
         )
-        products = cur.fetchall()
-        return products if products else []
+        return cur.fetchone()[0]
 
 
 def update_product_db(conn, product_id: int, name: str, price: Decimal, quantity: int):

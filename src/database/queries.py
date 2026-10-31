@@ -3,7 +3,12 @@ from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_REPEATABLE_READ, ISOLATION_LEVEL_SERIALIZABLE
 from psycopg2.errors import SerializationFailure
+from src.api.models.mixins import LoggableMixin
 from src.database.connection import connect_to_db
+import time
+import statistics
+from contextlib import contextmanager
+from psycopg2.extras import RealDictCursor
 
 load_dotenv()
 
@@ -59,29 +64,6 @@ def get_top_products(conn, limit=5):
     cursor.close()
     return results    
 
-
-# def transfer_money(conn, transfer_value, from_user_id, to_user_id):
-#     cursor = conn.cursor()
-#     try:
-#         cursor.executr("BEGIN")
-#         cursor.execute("UPDATE users SET amount = amount - %s WHERE id = %s", (transfer_value, from_user_id))
-#         cursor.execute("SELECT amount FROM users WHERE id = %s", (from_user_id,))
-#         result = cursor.fetchone()
-#         if result[0] < 0:
-#             raise ValueError("Баланс не может быть отрицательным")
-#         cursor.execute("UPDATE users SET amount = amount + %s WHERE id = %s", (transfer_value, to_user_id))
-#         conn.commit()
-#     except psycopg2.Error as e:
-#         conn.rollback()
-#         print(e)
-#     except ValueError as e:
-#         conn.rollback()
-#         print(e)
-#     finally:
-#         conn.close()
-
-from psycopg2.extensions import ISOLATION_LEVEL_REPEATABLE_READ, ISOLATION_LEVEL_SERIALIZABLE
-from src.database.connection import connect_to_db
 
 def read_user_balance(user_id):
 
@@ -161,185 +143,64 @@ def critical_financial_operation(amount, from_user_id, to_user_id):
         raise RuntimeError("Не удалось выполнить перевод")
 
 
-import psycopg2
-from psycopg2 import errors
-
-
-class OrderError(Exception):
-    pass
-
-
-def create_order(user_id: int, items: dict[int, int], max_retries: int = 3) -> int:
-    """items: {product_id: quantity}. Возвращает id созданного заказа."""
-    if not items or any(qty <= 0 for qty in items.values()):
-        raise ValueError("Некорректный состав заказа")
-
-    for attempt in range(max_retries):
-        conn = connect_to_db()
-        try:
-            # BEGIN psycopg2 отправит сам перед первым запросом
-            with conn.cursor() as cur:
-                # 1. Проверяем баланс, блокируя строку пользователя
-                cur.execute("SELECT balance FROM users WHERE id = %s FOR UPDATE", (user_id,))
-                row = cur.fetchone()
-                if row is None:
-                    raise OrderError("Пользователь не найден")
-                balance = row[0]
-
-                # Блокируем товары в фиксированном порядке, чтобы не было дедлоков
-                product_ids = sorted(items)
-                cur.execute(
-                    "SELECT id, price, quantity FROM products "
-                    "WHERE id = ANY(%s) ORDER BY id FOR UPDATE",
-                    (product_ids,),
-                )
-                stock = {pid: (price, qty) for pid, price, qty in cur.fetchall()}
-
-                missing = set(product_ids) - stock.keys()
-                if missing:
-                    raise OrderError(f"Товары не найдены: {missing}")
-                for pid, qty in items.items():
-                    if stock[pid][1] < qty:
-                        raise OrderError(f"Недостаточно товара {pid} на складе")
-
-                # Сумму считаем по ценам из БД, а не по данным от клиента
-                total = sum(stock[pid][0] * qty for pid, qty in items.items())
-                if balance < total:
-                    raise OrderError("Недостаточно средств")
-
-                # 2. Создаём заказ
-                cur.execute(
-                    "INSERT INTO orders (user_id, total) VALUES (%s, %s) RETURNING id",
-                    (user_id, total),
-                )
-                order_id = cur.fetchone()[0]
-
-                # 3. Добавляем товары в заказ (фиксируем цену на момент покупки)
-                cur.executemany(
-                    "INSERT INTO order_items (order_id, product_id, quantity, price) "
-                    "VALUES (%s, %s, %s, %s)",
-                    [(order_id, pid, qty, stock[pid][0]) for pid, qty in items.items()],
+def create_order(connection, user_id, product_id, quantity, total):
+    """Создать заказ с гарантией ACID"""
+    try:
+        with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+            # BEGIN транзакции (автоматически)
+            connection.set_isolation_level(
+                psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE
                 )
 
-                # 4. Списываем баланс
-                cur.execute(
-                    "UPDATE users SET balance = balance - %s WHERE id = %s",
-                    (total, user_id),
+            # Проверка баланса
+            cursor.execute(
+                "SELECT balance FROM users WHERE id = %s FOR UPDATE",
+                (user_id,)
+                )
+            user = cursor.fetchone()
+            if not user or user['balance'] < total:
+                connection.rollback()
+                raise ValueError("Недостаточно средств")
+
+            # Создание заказа
+            cursor.execute(
+                """
+                INSERT INTO orders (user_id, total, status)
+                VALUES (%s, %s, 'pending')
+                RETURNING id
+                """,
+                (user_id, total)
+                )
+            order_id = cursor.fetchone()['id']
+
+            # Добавление товара в заказ
+            cursor.execute(
+                """
+                INSERT INTO order_items (order_id, product_id, quantity, price)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (order_id, product_id, quantity, total)
                 )
 
-                # 5. Обновляем остатки
-                cur.executemany(
-                    "UPDATE products SET quantity = quantity - %s WHERE id = %s",
-                    [(qty, pid) for pid, qty in items.items()],
+            # Обновление баланса
+            cursor.execute(
+                "UPDATE users SET balance = balance - %s WHERE id = %s",
+                (total, user_id)
                 )
 
-            conn.commit()  # COMMIT
+            # Обновление инвентаря
+            cursor.execute(
+                "UPDATE products SET stock = stock - %s WHERE id = %s",
+                (quantity, product_id)
+                )
+
+            # COMMIT транзакции
+            connection.commit()
             return order_id
 
-        except (errors.SerializationFailure, errors.DeadlockDetected):
-            conn.rollback()  # конфликт конкурентных транзакций, пробуем ещё раз
-            continue
-        except Exception:
-            conn.rollback()  # ROLLBACK при любой другой ошибке
-            raise
-        finally:
-            conn.close()
-
-    raise OrderError("Не удалось создать заказ: превышено число попыток")
-
-
-import json
-from decimal import Decimal
-
-from psycopg2 import errors
-
-
-class OrderError(Exception):
-    pass
-
-
-# def create_order_AI(conn, user_id: int, cart: dict[int, int],
-#                  shipping_address: str, idempotency_key: str) -> int:
-#     """cart: {product_id: quantity}. Возвращает id заказа (новый или уже существующий)."""
-#     if not cart or any(q <= 0 for q in cart.values()):
-#         raise ValueError("Пустая корзина или некорректное количество")
-
-#     product_ids = sorted(cart)
-
-#     try:
-#         with conn.cursor() as cur:
-#             cur.execute("SET LOCAL lock_timeout = '3s'")
-
-#             # 1. Блокируем товары в порядке id, защита от дедлоков
-#             cur.execute(
-#                 """SELECT id, price, quantity FROM products
-#                    WHERE id = ANY(%s) AND is_active
-#                    ORDER BY id FOR UPDATE""",
-#                 (product_ids,),
-#             )
-#             stock = {pid: (price, qty) for pid, price, qty in cur.fetchall()}
-
-#             # 2. Проверки и сумма по ценам из БД
-#             missing = set(product_ids) - stock.keys()
-#             if missing:
-#                 raise OrderError(f"Товары недоступны: {sorted(missing)}")
-#             short = [pid for pid in product_ids if stock[pid][1] < cart[pid]]
-#             if short:
-#                 raise OrderError(f"Недостаточно на складе: {short}")
-#             total = sum((stock[pid][0] * cart[pid] for pid in product_ids), Decimal(0))
-
-#             # 3. Заказ. При повторном запросе с тем же ключом вставки не будет
-#             cur.execute(
-#                 """INSERT INTO orders (user_id, status, total, shipping_address, idempotency_key)
-#                    VALUES (%s, 'awaiting_payment', %s, %s, %s)
-#                    ON CONFLICT (user_id, idempotency_key) DO NOTHING
-#                    RETURNING id""",
-#                 (user_id, total, shipping_address, idempotency_key),
-#             )
-#             row = cur.fetchone()
-#             if row is None:
-#                 # Такой заказ уже создан: откатываемся и возвращаем его
-#                 conn.rollback()
-#                 with conn.cursor() as cur2:
-#                     cur2.execute(
-#                         "SELECT id FROM orders WHERE user_id = %s AND idempotency_key = %s",
-#                         (user_id, idempotency_key),
-#                     )
-#                     return cur2.fetchone()[0]
-#             order_id = row[0]
-
-#             # 4. Позиции со снимком цены
-#             cur.executemany(
-#                 """INSERT INTO order_items (order_id, product_id, quantity, price)
-#                    VALUES (%s, %s, %s, %s)""",
-#                 [(order_id, pid, cart[pid], stock[pid][0]) for pid in product_ids],
-#             )
-
-#             # 5. Резервируем остатки
-#             cur.executemany(
-#                 "UPDATE products SET quantity = quantity - %s WHERE id = %s",
-#                 [(cart[pid], pid) for pid in product_ids],
-#             )
-
-#             # 6. Событие для воркера (письмо, склад, аналитика)
-#             cur.execute(
-#                 "INSERT INTO outbox (event_type, payload) VALUES (%s, %s)",
-#                 ("order_created", json.dumps({"order_id": order_id, "user_id": user_id})),
-#             )
-
-#         conn.commit()
-#         return order_id
-
-#     except Exception:
-#         conn.rollback()
-#         raise
-            
-# Файл src/database/queries.py
-import time
-import statistics
-from contextlib import contextmanager
-from decimal import Decimal
-
+    except Exception as e:
+        connection.rollback()
+        raise e
 
 def find_products_by_price(cur, price):
     cur.execute("SELECT name, price FROM products WHERE price = %s", (price,))
@@ -383,6 +244,67 @@ def measure_index_performance(price, repeats=5):
         f"Ускорение:   в {slow / fast:.1f} раз"
     )
 
+# До оптимизации
+def get_user_orders(user_id):
+    """Получить заказы пользователя (медленно без индекса)"""
+    with connect_to_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                EXPLAIN ANALYZE
+                SELECT * FROM orders WHERE user_id = %s
+                """,
+                (user_id,)
+                )
+            plan = cursor.fetchall()
+            print("План запроса до индекса:")
+            for row in plan:
+                print(row['QUERY PLAN'])
+
+            cursor.execute(
+                "SELECT * FROM orders WHERE user_id = %s",
+                (user_id,)
+                )
+            return cursor.fetchall()
+
+# Создание индекса
+def create_indexes(connection):
+    """Создать индексы для оптимизации"""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)"
+            )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_orders_date ON orders(order_date)"
+            )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id)"
+            )
+        connection.commit()
+
+# После оптимизации
+def get_user_orders_optimized(connection, user_id):
+    """Получить заказы пользователя (быстро с индексом)"""
+    with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute(
+            """
+            EXPLAIN ANALYZE
+            SELECT * FROM orders WHERE user_id = %s
+            """,
+            (user_id,)
+            )
+        plan = cursor.fetchall()
+        print("План запроса после индекса:")
+        for row in plan:
+            print(row['QUERY PLAN'])
+
+        cursor.execute(
+            "SELECT * FROM orders WHERE user_id = %s",
+            (user_id,)
+            )
+        return cursor.fetchall()
+
 
 if __name__ == "__main__":
-    measure_index_performance(Decimal("99999"))
+    pass
+    # measure_index_performance(Decimal("99999"))

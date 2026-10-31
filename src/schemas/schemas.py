@@ -12,9 +12,9 @@ class UserCreate(BaseModel):
 class ProductCreate(BaseModel):
     name: str
     price: Decimal
-    quantity: int
+    stock: int
 
 class ProductUpdate(BaseModel):
     name: str
     price: Decimal
-    quantity: int
+    stock: int

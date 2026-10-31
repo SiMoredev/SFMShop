@@ -33,14 +33,22 @@ class PersentDiscount(DiscountStrategy):
 class Product(LoggableMixin, SerializableMixin, metaclass=ModelRegistryMeta):
 
     price = PositiveNumber[Decimal]("_price")
-    quantity = PositiveNumber[int]("_quantity")
+    stock = PositiveNumber[int]("_stock")
 
-    def __init__(self, name: str, price: Decimal, quantity: int):
+    def __init__(self, name: str, price: Decimal, stock: int):
         self.name = name
         self.price = price
-        self.quantity = quantity
+        self.stock = stock
         self.id: Optional[int] = None
         self.log(f"Создан товар: {name}, цена: {price}")
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Product":
+        return cls(
+            name=data["name"],
+            price=Decimal(str(data["price"])),
+            stock=data.get("stock", 0),
+        )
 
     def __str__(self):
         return self.name + ", Цена: " + str(self.price) + " руб., Количество: " + str(self.quantity)
@@ -83,11 +91,7 @@ class Product(LoggableMixin, SerializableMixin, metaclass=ModelRegistryMeta):
 
     @CachedProperty
     def get_total_price(self) -> Decimal:
-        return self.price * Decimal(str(self.quantity))
-
-    @classmethod
-    def from_dict(cls, data):
-        return cls(data["name"], data["price"], data["quantity"])
+        return self.price * Decimal(str(self.stock))
 
 """Тесты"""
 def main():
