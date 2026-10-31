@@ -25,3 +25,7 @@ class ZeroQuantityError(SFMShopException):
 class NotUniqueEmailError(SFMShopException):
     """Неуникальный email"""
     pass
+
+class OrderError(SFMShopException):
+    """Ошибка при создании заказа"""
+    pass
