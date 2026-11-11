@@ -1,5 +1,4 @@
 # src/database/queries.py — текущие версии на сыром SQL (ЭТО переписываешь на ORM)
-from http.client import TOO_EARLY
 from typing import Optional
 from pydantic import EmailStr
 from decimal import Decimal
@@ -7,7 +6,7 @@ from decimal import Decimal
 from requests import session
 from src.database.models import OrderItems, Product, get_session, Order, User
 from sqlalchemy import select, update
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 
 def create_user(name: str, email: EmailStr):
@@ -21,6 +20,7 @@ def create_user(name: str, email: EmailStr):
         return user_id
     except Exception as e:
         session.rollback()
+        raise
     finally:
         session.close()
 
@@ -65,6 +65,7 @@ def add_product(name: str, price: Decimal, stock: int=0):
         return {"id": product_id}
     except Exception as e:
         session.rollback()
+        raise
     finally:
         session.close()
 
@@ -77,6 +78,9 @@ def update_product(product_id: int, name: str, price: Decimal, stock: int):
             .values(name=name, price=price, stock=stock)
         )
         session.commit()
+    except Exception as e:
+        session.rollback()
+        raise
     finally:
         session.close()
 
@@ -140,18 +144,68 @@ def get_user_orders(user_id):
         session.close()
 
 
-def create_order(user_id, total):
+def create_order(user_id, product_id: int, quantity: int):
     """Создание заказа"""
     session = get_session()
+    total = 0
     try:
-        order = Order(user_id=user_id, total=total)
+        user = session.get(User, user_id, with_for_update=True)
+        if not user:
+            raise ValueError("Пользователь не найден")
+        
+        product_db = session.get(Product, product_id, with_for_update=True)
+        if not product_db:
+            raise ValueError("Товары не найдены")
+
+        if quantity <= 0:
+            raise ValueError("Количество не может быть отрицательным")
+        
+        if product_db.stock < quantity:
+            raise ValueError("Товаров недостаточно на складе")
+        
+        total = product_db.price * quantity
+        if user.balance < total:
+            raise ValueError("Недостаточно средств на счете")
+        
+        order = Order(
+            user_id=user.id,
+            total=total,
+            order_items=[
+            OrderItems(product_id=product_db.id, quantity=quantity, price=product_db.price)
+            ],)
+        
+        product_db.stock -= quantity
+        user.balance -= total
         session.add(order)
         session.commit()
         order_id = order.id
         return order_id
-    except Exception as e:
+    
+    except Exception:
         session.rollback()
         raise
+    finally:
+        session.close()
+
+
+def get_order(order_id: int):
+    session = get_session()
+    try:
+        order = session.get(Order, order_id)
+        return order
+    finally:
+        session.close()
+
+
+def delete_order(order_id: int):
+    session = get_session()
+    try:
+        order = session.get(Order, order_id)
+        if order is None:
+            return False
+        session.delete(order)
+        session.commit()
+        return True
     finally:
         session.close()
 
@@ -191,3 +245,35 @@ def get_orders_with_products(user_id: int):
         } for order in orders]
     finally:
         session.close()
+
+
+def process_order(order_id: int):
+    """Получить заказ, проверить и перевести в статус processing"""
+    with get_session() as session:
+        with session.begin():
+            # 1. Получение заказа
+            stmt = (
+                select(Order)
+                .options(selectinload(Order.order_items))
+                .where(Order.id == order_id)
+                .with_for_update()
+            )
+            order = session.execute(stmt).scalar_one_or_none()
+
+            # 2. Валидация
+            if order is None:
+                return f"Заказ {order_id}: не найден"
+            if order.status != "pending":
+                return f"Заказ {order_id}: уже в статусе {order.status}"
+            if not order.order_items:
+                return f"Заказ {order_id}: нет позиций"
+
+            items_total = sum(item.price * item.quantity for item in order.order_items)
+            if items_total != order.total:
+                order.status = "error"
+                return f"Заказ {order_id}: сумма не совпадает ({order.total} != {items_total})"
+
+            # 3. Обновление статуса
+            order.status = "processing"
+
+    return f"Заказ {order_id} обработан"

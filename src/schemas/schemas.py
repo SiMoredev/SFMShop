@@ -1,9 +1,12 @@
+from statistics import quantiles
+
 from pydantic import BaseModel
 from decimal import Decimal
 
 class OrderCreate(BaseModel):
     user_id: int
     product_id: int
+    quantity: int
 
 class UserCreate(BaseModel):
     name: str
