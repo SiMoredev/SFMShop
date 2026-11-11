@@ -1,17 +1,17 @@
 # Файл src/api/main.py
 from fastapi import FastAPI, HTTPException, status, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
 from src.api.models.exceptions import ValidationEmailError
 from fastapi.testclient import TestClient
 from src.database.queries_orm import (
     get_products_page, get_product_by_id, 
     update_product, add_product, delete_product,
-    get_user_by_id, get_users, create_user, create_order
+    get_user_by_id, get_users, create_user, create_order,
+    get_order
 )
 from src.schemas.schemas import ProductCreate, ProductUpdate, OrderCreate, UserCreate
-from src.api.models.product import Product
 from src.api.models.metaclasses import ModelRegistryMeta
+from src.services.async_service import process_orders_async
 from src.services.cache_service import CacheService
 from src.services.log_service import save_log, init_logs_indexes
 import traceback
@@ -58,11 +58,40 @@ cache_service = CacheService()
 resources: dict = {}
 
 
+@app.post("/orders/process")
+async def process_orders_endpoint(order_ids: list[int], background_tasks: BackgroundTasks):
+    """Endpoint для обработки заказов"""
+    try:
+        # Асинхронная обработка заказов
+        results = await process_orders_async(order_ids)
+        return {
+            "status": "success",
+            "processed": len(results),
+            "results": results
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@app.post("/orders/process-background")
+async def process_orders_background(order_ids: list[int], background_tasks: BackgroundTasks):
+    """Endpoint для фоновой обработки заказов"""
+    background_tasks.add_task(process_orders_async, order_ids)
+    return {
+        "status": "accepted",
+        "message": "Обработка заказов запущена в фоне"
+    }
+
+
 @app.get("/products/{product_id}/full")
 async def get_product_full(product_id: int):
     """Товар, отзывы и просмотры - три источника параллельно"""
     # Твой код здесь
     pass
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -168,6 +197,10 @@ def create_order_endpoint(order: OrderCreate):
             detail=str(e)
         )
 
+@app.get("/orders/{order_id}")
+def get_order_endpoint(order_id: int):
+    order = get_order(order_id)
+    return order
 
     
 @app.get("/users")
