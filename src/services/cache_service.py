@@ -11,15 +11,15 @@ class CacheService:
     def set_product(self, product_id: int, product: dict, ttl: int = 3600):
         """Сохранить товар в кэш"""
         self.redis_client.setex(
-            f"product:{product_id}",
+            f"products:{product_id}",
             ttl,
             json.dumps(product)
             )
 
-    def set_products(self, products: list, ttl: int = 3600):
+    def set_products(self, products: list, limit: int, offset: int, ttl: int = 3600):
         """Сохранить список товаров в кэш"""
         self.redis_client.setex(
-            "products:all",
+            f"products:{limit}:{offset}",
             ttl,
             json.dumps(products)
             )
@@ -88,3 +88,4 @@ if __name__ == "__main__":
     
     session = cache.get_user_session(session_token)
     print(f"Сессия: {session}")
+

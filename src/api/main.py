@@ -1,6 +1,7 @@
 # Файл src/api/main.py
 from fastapi import FastAPI, HTTPException, status, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from src.api.models.exceptions import ValidationEmailError
 from fastapi.testclient import TestClient
 from src.database.queries_orm import (
@@ -11,23 +12,57 @@ from src.database.queries_orm import (
 from src.schemas.schemas import ProductCreate, ProductUpdate, OrderCreate, UserCreate
 from src.api.models.product import Product
 from src.api.models.metaclasses import ModelRegistryMeta
-from src.services.cache_services import CacheService
+from src.services.cache_service import CacheService
 from src.services.log_service import save_log, init_logs_indexes
 import traceback
 import logging
 from starlette.concurrency import run_in_threadpool
 from contextlib import asynccontextmanager
+import asyncpg
+import httpx
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 logger = logging.getLogger(__name__)
+db_pool: asyncpg.Pool | None = None
+http_client: httpx.AsyncClient | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await run_in_threadpool(init_logs_indexes)
+    global db_pool, http_client
+
+    # Создание пула БД и HTTP-клиента при старте
+    db_pool = await asyncpg.create_pool(
+        (
+        f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@"
+        f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+        ),
+        min_size=10,
+        max_size=20,
+        command_timeout=10
+        )
+    http_client = httpx.AsyncClient(timeout=5.0)
+
+    # Корректное завершение
+    await http_client.aclose()
+    await db_pool.close()
     yield
 
 app = FastAPI(lifespan=lifespan)
 cache_service = CacheService()
+
+
+resources: dict = {}
+
+
+@app.get("/products/{product_id}/full")
+async def get_product_full(product_id: int):
+    """Товар, отзывы и просмотры - три источника параллельно"""
+    # Твой код здесь
+    pass
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -74,13 +109,10 @@ def get_products_endpoint(limit: int = 10, offset: int = 0):
     # Запрос к БД
     products_data = get_products_page(limit, offset)
     if products_data:
-        cache_service.set_products(products_data)
+        cache_service.set_products(products_data, limit=limit, offset=offset)
         return products_data
     else:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail="Товары не найдены"
-            )
+        return []
 
 
 @app.get("/products/{product_id}")
@@ -115,7 +147,7 @@ def update_product_endpoint(product_id: int, product_data: ProductUpdate):
 @app.delete("/products/{product_id}")
 def delete_product_endpoint(product_id: int):
     deleted = delete_product(product_id)
-    if deleted == 0:
+    if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, 
             detail="Товар не найден"
@@ -126,24 +158,16 @@ def delete_product_endpoint(product_id: int):
 @app.post("/orders", status_code=status.HTTP_201_CREATED)
 def create_order_endpoint(order: OrderCreate):
     """Создать новый заказ"""
-    user = get_user_by_id(order.user_id)
-    if user is None:
+    try:
+        new_order = create_order(order.user_id, order.product_id, order.quantity)
+        return {"message": "Заказ создан", "order": new_order}
+    
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Пользователь с id={order.user_id} не найден"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
-    row = get_product_by_id(order.product_id)
-    if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Товар с id={order.product_id} не найден"
-        )
-    new_product = Product.from_dict(row)
-    total = new_product.get_total_price
-    new_order = create_order(order.user_id, total)
-    order_obj = []
-    order_obj.append(order)
-    return {"message": "Заказ создан", "order": new_order}
+
 
     
 @app.get("/users")
@@ -170,6 +194,11 @@ def create_user_endpoint(user: UserCreate):
     """Создать нового пользователя"""
     try:
         new_user = create_user(user.name, user.email)
+        save_log({
+            "title": "create_user",
+            "user": user.name,
+            "email": user.email
+            })
     except ValidationEmailError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
