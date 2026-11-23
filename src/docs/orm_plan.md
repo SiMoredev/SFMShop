@@ -23,7 +23,7 @@
   - при ошибке записи вызывается `rollback()`, и исключение пробрасывается дальше (`raise`); -->
   - если объект не найден, возвращается `None` или `False`, а не падение на `None.name`.
 <!-- - [ ] Удалить лишний импорт `from http.client import TOO_EARLY` в `queries_orm.py`. -->
-- [ ] Если понадобится удаление заказа, написать `delete_order(order_id)` на ORM. Позиции удалятся сами: у `Order.order_items` стоит `cascade="all, delete-orphan"`.
+<!-- - [ ] Если понадобится удаление заказа, написать `delete_order(order_id)` на ORM. Позиции удалятся сами: у `Order.order_items` стоит `cascade="all, delete-orphan"`. -->
 
 ## Шаг 3. Убрать psycopg2
 

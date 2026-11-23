@@ -29,3 +29,8 @@ class NotUniqueEmailError(SFMShopException):
 class OrderError(SFMShopException):
     """Ошибка при создании заказа"""
     pass
+
+class InsufficientStockError(Exception):
+    """Недостаточно товара на складе."""
+
+    pass

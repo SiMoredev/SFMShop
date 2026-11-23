@@ -137,7 +137,7 @@ def get_user_orders(user_id):
             return [{
                 "id": order.id,
                 "total": float(order.total),
-                "created_at": order.order_date.isoformat()
+                "created_at": order.created_at.isoformat()
             } for order in user.orders]
         return []
     finally:

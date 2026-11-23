@@ -93,5 +93,5 @@ async def fetch_multiple_urls_async(urls: list):
         return await asyncio.gather(*tasks)
 
 
-result = asyncio.run(fetch_data_async("http://127.0.0.1:8000/products/1212g1"))
+result = asyncio.run(fetch_data_async("http://127.0.0.1:8000/products/1212"))
 print(result)
