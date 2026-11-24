@@ -44,3 +44,20 @@ class ProductRepository:
         if product is None:
             raise ValueError(f"Товар {product_id} не найден")
         product.stock += quantity_delta
+
+    async def search(
+        self,
+        name_query: str | None = None,
+        min_price: float | None = None,
+        max_price: float | None = None,
+        ) -> list[Product]:
+        """Поиск товаров по подстроке названия и диапазону цены."""
+        query = select(Product)
+        if name_query:
+            query = query.where(Product.name.ilike(f"%{name_query}%"))
+        if min_price is not None:
+            query = query.where(Product.price >= min_price)
+        if max_price is not None:
+            query = query.where(Product.price <= max_price)
+        result = await self.session.execute(query)
+        return list(result.scalars().all())

@@ -31,6 +31,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from src.api.routes import orders
+from src.api.routes import products
 
 
 load_dotenv()
@@ -462,3 +463,8 @@ def get_products_v1(
 
 # Слоистый роутер заказов: POST /api/v1/orders/, POST /api/v1/orders/{id}/cancel, GET /api/v1/orders/{id}
 app.include_router(orders.router, prefix="/api/v1")
+app.include_router(products.router, prefix="/api/v1")
+
+from src.services.exchange_client import ExchangeClient
+rate = ExchangeClient().get_exchange_rate("USD", "RUB")
+print(f"Курс USD->RUB: {rate}")

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from src.repositories.order_repository import OrderRepository
 from src.repositories.product_repository import ProductRepository
 from src.services.order_service import OrderService
+from src.services.product_service import ProductService
 
 load_dotenv()
 
@@ -52,3 +53,11 @@ async def get_order_service(
         order_repo=order_repo,
         product_repo=product_repo,
         )
+
+
+async def get_product_service(
+    product_repo: ProductRepository = Depends(get_product_repository)
+    ) -> ProductService | None:
+    return ProductService(
+        product_repo=product_repo
+    )
