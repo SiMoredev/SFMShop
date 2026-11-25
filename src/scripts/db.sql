@@ -46,3 +46,5 @@ INSERT INTO order_items (order_id, product_id, quantity, price) VALUES
     (1, 2, 2, 1500),
     (1, 1, 3, 1500),
     (2, 5, 5, 100);
+
+COALESCE
