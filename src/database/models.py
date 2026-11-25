@@ -59,13 +59,15 @@ class Order(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey('products.id'))
+    quantity: Mapped[int] = mapped_column(default=1)
     total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    order_date: Mapped[datetime] = mapped_column(
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending")
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, 
         default=lambda: datetime.now(timezone.utc), 
         server_default=func.now()
         )
-    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending")
 
     # Связь с пользователями
     user: Mapped["User"] = relationship(back_populates="orders")

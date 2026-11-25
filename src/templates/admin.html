@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+ <meta charset="UTF-8">
+ <title>SFMShop - Админ-панель</title>
+ <style>
+ body {
+    font-family: Arial, Helvetica, sans-serif;
+    max-width: 600px;
+    margin: 50px auto;
+    padding: 20px;
+ }
+
+ h1 {
+    color: #333;
+    text-align: center;
+ }
+
+ form {
+    background-color: #f0e7e7;
+    padding: 20px;
+    border-radius: 5px;
+ }
+
+ label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+ }
+
+ input {
+    width: 97%;
+    padding: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+ }
+
+ button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+ }
+
+ button:hover {
+    background-color: #45a049;
+ }
+
+  #message {
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: 3px;
+ }
+
+ .success {
+    background-color: #d4edda;
+    color: #155724;
+ }
+
+ .error {
+    background-color: #f8d7da;
+    color: #721c24;
+ }
+ </style>
+</head>
+<body>
+ <h1>Админ-панель SFMShop</h1>
+
+ <form id="productForm">
+ <label for="name">Название товара:</label>
+ <input type="text" id="name" name="name" required>
+
+ <label for="price">Цена:</label>
+ <input type="number" id="price" name="price" step="0.01" min="0" required>
+
+ <label for="stock">Количество на складе:</label>
+ <input type="number" id="stock" name="stock" min="0" required>
+
+ <button type="submit">Добавить товар</button>
+ </form>
+
+ <div id="message"></div>
+
+   <!-- Добавить в body после формы -->
+   <button id="getProductsBtn">Получить список товаров</button>
+   <div id="productsList"></div>
+
+   <script>
+      // Обработчик для получения списка товаров
+      document.getElementById('getProductsBtn').addEventListener('click', async function() {
+         try {
+               const response = await fetch('http://localhost:8000/products');
+               
+               if (response.ok) {
+                  const products = await response.json();   // эндпоинт отдаёт массив, а не объект
+                  const productsList = document.getElementById('productsList');
+                  productsList.innerHTML = '';  // Очистка предыдущего списка
+                  
+                  if (products.length > 0) {
+                     const ul = document.createElement('ul');
+                     products.forEach(product => {
+                           const li = document.createElement('li');
+                           li.textContent = `${product.name} - ${product.price} руб. (остаток: ${product.quantity})`;
+                           ul.appendChild(li);
+                     });
+                     productsList.appendChild(ul);
+                  } else {
+                     productsList.textContent = 'Товары не найдены';
+                  }
+               } else {
+                  document.getElementById('productsList').textContent = 'Ошибка при получении товаров';
+               }
+         } catch (error) {
+               document.getElementById('productsList').textContent = `Ошибка: ${error.message}`;
+         }
+      });
+   </script>
+
+ <script>
+ // Обработка отправки формы
+ document.getElementById('productForm').addEventListener('submit', async function(event) {
+ event.preventDefault();
+
+ // Получение данных из формы
+ const formData = {
+ name: document.getElementById('name').value,
+ price: parseFloat(document.getElementById('price').value),
+ stock: parseInt(document.getElementById('stock').value)
+ };
+
+ // Отправка данных на сервер
+ try {
+ const response = await fetch('http://localhost:8000/products', {
+ method: 'POST',
+ headers: {
+ 'Content-Type': 'application/json'
+ },
+ body: JSON.stringify(formData)
+ });
+
+ const messageDiv = document.getElementById('message');
+
+ if (response.ok) {
+ const result = await response.json();
+ messageDiv.textContent = `Товар успешно создан! ID: ${result.id}`;
+ messageDiv.className = 'success';
+
+ // Очистка формы
+ document.getElementById('productForm').reset();
+ } else {
+ const error = await response.json();
+ messageDiv.textContent = `Ошибка: ${error.detail || 'Неизвестная ошибка'}`;
+ messageDiv.className = 'error';
+ }
+ } catch (error) {
+ const messageDiv = document.getElementById('message');
+ messageDiv.textContent = `Ошибка подключения: ${error.message}`;
+ messageDiv.className = 'error';
+ }
+ });
+ // Получение элемента по ID
+ const nameInput = document.getElementById('name');
+
+ // Получение значения
+ const nameValue = nameInput.value;
+
+ // Установка значения
+ nameInput.value = 'Новое значение';
+
+ // Изменение текста элемента
+ const messageDiv = document.getElementById('message');
+ messageDiv.textContent = 'Новое сообщение';
+
+ // Добавление класса
+ messageDiv.classList.add('success');
+
+ // Удаление класса
+ messageDiv.classList.remove('error');
+
+ </script>
+
+</body>
+</html>
