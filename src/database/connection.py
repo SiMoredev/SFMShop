@@ -3,7 +3,7 @@ from contextlib import contextmanager
 import psycopg2
 import os
 from dotenv import load_dotenv
-from src.api.models.exceptions import ValidationEmailError
+from src.core.exceptions import ValidationEmailError
 from decimal import Decimal
 import redis
 

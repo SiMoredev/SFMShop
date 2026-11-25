@@ -30,7 +30,6 @@ class OrderError(SFMShopException):
     """Ошибка при создании заказа"""
     pass
 
-class InsufficientStockError(Exception):
-    """Недостаточно товара на складе."""
-
+class InsufficientFundsError(SFMShopException):
+    """Недостаточно средств на балансе"""
     pass

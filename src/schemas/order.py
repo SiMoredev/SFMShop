@@ -1,19 +1,25 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from decimal import Decimal
 
 
 class OrderCreate(BaseModel):
-    user_id: int = Field(..., gt=0)
     product_id: int = Field(..., gt=0)
     quantity: int = Field(..., gt=0)
+
+
+class OrderItemResponse(BaseModel):
+    product_id: int
+    quantity: int
+    price: Decimal
+
+    model_config = {"from_attributes": True}
+
 
 class OrderResponse(BaseModel):
     id: int
     user_id: int
-    product_id: int
-    quantity: int
-    total: float
+    total: Decimal
     status: str
+    items: list[OrderItemResponse] = Field(validation_alias="order_items")
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

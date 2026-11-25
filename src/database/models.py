@@ -19,8 +19,9 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, server_default="0")
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, 
+        DateTime(timezone=True), 
         default=lambda: datetime.now(timezone.utc), 
         server_default=func.now()
         )
@@ -32,7 +33,6 @@ class User(Base):
         )
 
 
-
 class Product(Base):
     """Модель товара"""
     __tablename__ = "products"
@@ -42,7 +42,7 @@ class Product(Base):
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     stock: Mapped[int] = mapped_column(default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, 
+        DateTime(timezone=True), 
         default=lambda: datetime.now(timezone.utc), 
         server_default=func.now()
         )
@@ -59,12 +59,10 @@ class Order(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    product_id: Mapped[int] = mapped_column(ForeignKey('products.id'))
-    quantity: Mapped[int] = mapped_column(default=1)
     total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, 
+        DateTime(timezone=True), 
         default=lambda: datetime.now(timezone.utc), 
         server_default=func.now()
         )

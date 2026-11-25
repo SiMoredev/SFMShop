@@ -1,10 +1,9 @@
-# Файл src/services/order_service.py
-from decimal import Decimal
-
-from src.database.models import Order
+from decimal import ROUND_HALF_UP, Decimal
+from src.database.models import Order, OrderItems
 from src.repositories.order_repository import OrderRepository
 from src.repositories.product_repository import ProductRepository
-from src.api.models.exceptions import InsufficientStockError
+from src.core.exceptions import InsufficientStockError, InvalidOrderError
+from src.core.order_status import change_status
 
 
 class OrderService:
@@ -12,7 +11,7 @@ class OrderService:
 
     # Минимальное количество для оптовой скидки
     BULK_DISCOUNT_THRESHOLD = 10
-    BULK_DISCOUNT_RATE = 0.9
+    BULK_DISCOUNT_RATE = Decimal("0.9")
 
     def __init__(
         self,
@@ -42,9 +41,10 @@ class OrderService:
 
         order = Order(
             user_id=user_id,
-            product_id=product_id,
-            quantity=quantity,
             total=total,
+            order_items=[
+                OrderItems(product_id=product_id, quantity=quantity, price=product.price),
+            ],
             )
         order = await self.order_repo.create(order)
 
@@ -53,33 +53,38 @@ class OrderService:
 
         return order
 
-    def _calculate_total(self, price: Decimal, quantity: int) -> float:
+    def _calculate_total(self, price: Decimal, quantity: int) -> Decimal:
         """Расчёт стоимости с учётом оптовой скидки."""
-        # price из ORM-модели приходит как Decimal (Numeric) -- приводим к float
-        total = float(price) * quantity
+        total = price * quantity
         if quantity >= self.BULK_DISCOUNT_THRESHOLD:
             total *= self.BULK_DISCOUNT_RATE
-        return total
+        return total.quantize(Decimal("0,01"), rounding=ROUND_HALF_UP)
 
-    async def cancel_order(self, order_id: int) -> Order:
+    async def process_order(self, order_id: int, user_id: int) -> Order:
+        """Проверить заказ и переверсти panding -> processing"""
+        order = await self.order_repo.get_by_id(order_id, for_update=True)
+        if order is None or order.user_id != user_id:
+            raise ValueError(f"Заказ {order_id} не найден")
+        if not order.order_items:
+            raise InvalidOrderError(f"Заказ {order_id}: нет позиций")
+        change_status(order, "processing")
+        return order
+
+    async def cancel_order(self, order_id: int, user_id: int) -> Order:
         """Отменить заказ и вернуть товар на склад."""
         order = await self.order_repo.get_by_id(order_id)
         if order is None:
             raise ValueError(f"Заказ {order_id} не найден")
-
         if order.status == "cancelled":
             raise ValueError("Заказ уже отменён")
-
-        order.status = "cancelled"
-
-        # Возвращаем товар на склад
-        await self.product_repo.update_stock(
-            order.product_id,
-            order.quantity,
-            )
-
+        change_status(order, "cancelled")
+        for item in order.order_items:
+            await self.product_repo.update_stock(item.product_id, item.quantity)
         return order
 
-    async def get_order(self, order_id: int) -> Order | None:
+    async def get_order(self, order_id: int, user_id: int) -> Order | None:
         """Получить заказ по ID (эндпоинт GET /orders/{order_id})."""
-        return await self.order_repo.get_by_id(order_id)
+        order = await self.order_repo.get_by_id(order_id)
+        if order is None or order.user_id != user_id:
+            return None
+        return order

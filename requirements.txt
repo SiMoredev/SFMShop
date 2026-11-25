@@ -62,3 +62,6 @@ watchfiles==1.2.0
 websockets==17.0.1
 pydantic-settings==2.15.0
 openai==3.57.0
+bcrypt==5.0.0
+passlib==1.9.5
+PyJWT==2.15.1
