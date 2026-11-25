@@ -4,6 +4,7 @@ import aiohttp
 import time
 import asyncio
 import time
+from src.core.exceptions import InsufficientFundsError
 from src.database.models import Order
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 import os
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from src.database.queries_orm import process_order as process_order_orm
+from src.services.exchange_client import AsyncExchangeClient
 
 
 load_dotenv()
@@ -22,7 +24,7 @@ engine = create_async_engine(
     f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
     )
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
-
+rate = AsyncExchangeClient()
 
 async def fetch_url_async(url: str):
     """Асинхронный запрос к URL"""
@@ -75,7 +77,7 @@ async def compare_parallel_and_sequential(urls: list):
         print(f"Ускорение: в {sequential_time / parallel_time:.1f} раз")
     return results
 
-
+"""Учебная функция, не для прода"""
 async def process_order(order_id: int):
     """Получить заказ, проверить и перевести в статус processing"""
     async with AsyncSessionLocal() as session:
@@ -83,7 +85,7 @@ async def process_order(order_id: int):
             # 1. Получение заказа
             stmt = (
                 select(Order)
-                .options(selectinload(Order.order_items))
+                .options(selectinload(Order.order_items), selectinload(Order.user))
                 .where(Order.id == order_id)
                 .with_for_update()
             )
@@ -91,19 +93,27 @@ async def process_order(order_id: int):
 
             # 2. Валидация
             if order is None:
-                return f"Заказ {order_id}: не найден"
+                raise ValueError(f"Заказ {order_id}: не найден")
             if order.status != "pending":
-                return f"Заказ {order_id}: уже в статусе {order.status}"
+                raise ValueError(f"Заказ {order_id}: уже в статусе {order.status}")
             if not order.order_items:
-                return f"Заказ {order_id}: нет позиций"
+                raise ValueError(f"Заказ {order_id}: нет позиций")
 
             items_total = sum(item.price * item.quantity for item in order.order_items)
             if items_total != order.total:
                 order.status = "error"
-                return f"Заказ {order_id}: сумма не совпадает ({order.total} != {items_total})"
+                raise ValueError(f"Заказ {order_id}: сумма не совпадает ({order.total} != {items_total})")
+            """Кусок кода - демонстрация использования внешнего сервиса"""
+            # if order.currency == "USD":
+            #     rub = asyncio.run(rate.get_exchange_rate("USD", "RUB"))
+            #     if rub is None:
+            #         raise ConnectionError("Нет подключение в внешнему ресурсу")
+            #     order_total_rub = rub * order.total
 
-            # 3. Обновление статуса
-            order.status = "processing"
+            # elif order.user.balance < items_total:
+            #     raise InsufficientFundsError("Недостаточно средств на счете")
+            # # 3. Обновление статуса
+            # order.status = "processing"
 
     return f"Заказ {order_id} обработан"
 

@@ -1,4 +1,4 @@
-from src.api.models.exceptions import InsufficientStockError
+from src.core.exceptions import InsufficientStockError
 from src.api.models.mixins import LoggableMixin, SerializableMixin
 from src.api.models.metaclasses import ModelRegistryMeta
 from src.api.models.descriptors import PositiveNumber, CachedProperty

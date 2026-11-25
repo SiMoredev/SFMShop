@@ -4,7 +4,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
-    jwt_secret: str = "change-me-in-production"
+    jwt_secret: str # без значения по умолчанию: не задан в .env → ошибка при старте
+    jwt_algorithm: str = "HS256"
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 7
     rate_limit_login: str = "5/minute"
     database_url: str = "sqlite:///./sfmshop.db"
     debug: bool = False
@@ -15,4 +18,4 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-settings = Settings()
+settings = Settings() #type: ignore[call_arg]

@@ -64,6 +64,16 @@
     background-color: #f8d7da;
     color: #721c24;
  }
+
+ #productsList {
+    max-height: 300px;        /* дальше этой высоты блок не растёт */
+    overflow-y: auto;         /* появляется вертикальная прокрутка */
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+ }
  </style>
 </head>
 <body>
@@ -83,41 +93,48 @@
  </form>
 
  <div id="message"></div>
+ <form>
+ <h2>Получить список товаров</h2>
+ <label for="limit">limit:</label>
+ <input type="number" id="limit" name="limit" required>
+ <label for="offset">offset:</label>
+ <input type="number" id="offset" name="offset" required>
+ </form>
+ <button id="getProductsBtn">Получить список товаров</button>
+ <div id="productsList"></div>
 
-   <!-- Добавить в body после формы -->
-   <button id="getProductsBtn">Получить список товаров</button>
-   <div id="productsList"></div>
 
-   <script>
-      // Обработчик для получения списка товаров
-      document.getElementById('getProductsBtn').addEventListener('click', async function() {
-         try {
-               const response = await fetch('http://localhost:8000/products');
-               
-               if (response.ok) {
-                  const products = await response.json();   // эндпоинт отдаёт массив, а не объект
-                  const productsList = document.getElementById('productsList');
-                  productsList.innerHTML = '';  // Очистка предыдущего списка
-                  
-                  if (products.length > 0) {
-                     const ul = document.createElement('ul');
-                     products.forEach(product => {
-                           const li = document.createElement('li');
-                           li.textContent = `${product.name} - ${product.price} руб. (остаток: ${product.quantity})`;
-                           ul.appendChild(li);
-                     });
-                     productsList.appendChild(ul);
-                  } else {
-                     productsList.textContent = 'Товары не найдены';
-                  }
-               } else {
-                  document.getElementById('productsList').textContent = 'Ошибка при получении товаров';
-               }
-         } catch (error) {
-               document.getElementById('productsList').textContent = `Ошибка: ${error.message}`;
-         }
-      });
-   </script>
+ <script>
+ // Обработчик для получения списка товаров
+ document.getElementById('getProductsBtn').addEventListener('click', async function() {
+  try {
+   const limit = document.getElementById('limit').value;
+   const offset = document.getElementById('offset').value;
+   const response = await fetch(`http://localhost:8000/products?limit=${limit}&offset=${offset}`);            
+   if (response.ok) {
+    const products = await response.json();   // эндпоинт отдаёт массив, а не объект
+    const productsList = document.getElementById('productsList');
+    productsList.innerHTML = '';  // Очистка предыдущего списка
+    
+    if (products.length > 0) {
+     const ul = document.createElement('ul');
+     products.forEach(product => {
+           const li = document.createElement('li');
+           li.textContent = `${product.name} - ${product.price} руб. (остаток: ${product.stock})`;
+           ul.appendChild(li);
+           });
+           productsList.appendChild(ul);
+        } else {
+           productsList.textContent = 'Товары не найдены';
+        }
+     } else {
+        document.getElementById('productsList').textContent = 'Ошибка при получении товаров';
+     }
+   } catch (error) {
+    document.getElementById('productsList').textContent = `Ошибка: ${error.message}`;
+   }
+ });
+ </script>
 
  <script>
  // Обработка отправки формы

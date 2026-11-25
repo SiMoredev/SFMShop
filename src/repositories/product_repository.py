@@ -17,7 +17,7 @@ class ProductRepository:
             )
         return result.scalar_one_or_none()
 
-    async def get_all(
+    async def get_list(
         self,
         skip: int = 0,
         limit: int = 100,

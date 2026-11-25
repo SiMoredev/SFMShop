@@ -49,6 +49,9 @@ class SupportAnswer(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
 
+class SupportQuestion(BaseModel):
+    question: str
+
 
 PLAN_PROMPT = """Определи, как ответить на вопрос покупателя SFMShop.
 Верни только JSON: action, topic, order_id.
